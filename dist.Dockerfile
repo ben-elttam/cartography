@@ -10,6 +10,10 @@ WORKDIR /var/cartography
 
 RUN pip install -U -e .
 
+RUN <<-EOF
+	groupadd --gid $gid cartography
+	useradd --uid $uid --gid $gid --create-home cartography
+EOF
 USER ${uid}:${gid}
 
 # verify that the binary at least runs
