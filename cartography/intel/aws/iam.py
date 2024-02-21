@@ -9,6 +9,8 @@ from typing import Tuple
 import boto3
 import neo4j
 
+from botocore.exceptions import ClientError
+
 from cartography.intel.aws.permission_relationships import parse_statement_node
 from cartography.intel.aws.permission_relationships import principal_allowed_on_resource
 from cartography.stats import get_stats_client
@@ -140,6 +142,11 @@ def get_role_policy_data(boto3_session: boto3.session.Session, role_list: List[D
             logger.warning(
                 f"Could not get policies for role {name} due to NoSuchEntityException; skipping.",
             )
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'AccessDenied':
+                logger.warning(f"Access denied when trying to retrieve inline policies for role {name} ({arn}), will use empty dict {{}}. Exception: {e}.")
+            else:
+                raise
     return policies
 
 
@@ -160,6 +167,11 @@ def get_role_managed_policy_data(boto3_session: boto3.session.Session, role_list
             logger.warning(
                 f"Could not get policies for role {name} due to NoSuchEntityException; skipping.",
             )
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'AccessDenied':
+                logger.warning(f"Access denied when trying to retrieve attached policies for role {name} ({role_arn}), will use empty dict {{}}. Exception: {e}.")
+            else:
+                raise
     return policies
 
 
