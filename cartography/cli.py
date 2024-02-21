@@ -164,7 +164,7 @@ class CLI:
         )
         parser.add_argument(
             "--aws-regions",
-            action="store_true",
+            nargs="+",
             default=None,
             help=("Only run operations in the specified regions"),
         )
