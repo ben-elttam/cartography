@@ -321,6 +321,9 @@ def start_aws_ingestion(neo4j_session: neo4j.Session, config: Config) -> None:
             "No valid AWS credentials could be found. No AWS accounts can be synced. Exiting AWS sync stage.",
         )
         return
+    import pdb
+
+    pdb.set_trace()
     if len(list(aws_accounts.values())) != len(set(aws_accounts.values())):
         logger.warning(
             (

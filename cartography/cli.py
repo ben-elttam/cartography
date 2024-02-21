@@ -163,6 +163,12 @@ class CLI:
             ),
         )
         parser.add_argument(
+            "--aws-regions",
+            action="store_true",
+            default=None,
+            help=("Only run operations in the specified regions"),
+        )
+        parser.add_argument(
             "--oci-sync-all-profiles",
             action="store_true",
             help=(
