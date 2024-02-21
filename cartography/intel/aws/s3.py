@@ -31,18 +31,27 @@ stat_handler = get_stats_client(__name__)
 @timeit
 def get_s3_bucket_list(boto3_session: boto3.session.Session) -> List[Dict]:
     client = boto3_session.client('s3')
-    # NOTE no paginator available for this operation
-    buckets = client.list_buckets()
-    for bucket in buckets['Buckets']:
-        try:
-            bucket['Region'] = client.get_bucket_location(Bucket=bucket['Name'])['LocationConstraint']
-        except ClientError as e:
-            if _is_common_exception(e, bucket):
-                bucket['Region'] = None
-                logger.warning("skipping bucket='{}' due to exception.".format(bucket['Name']))
-                continue
-            else:
-                raise
+    try:
+        # NOTE no paginator available for this operation
+        buckets = client.list_buckets()
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "AccessDenied":
+            logger.error("Unable to list S3 buckets - Access Denied")
+            return {}
+        else:
+            logger.warning("Unhandled exception when listing S3 buckets")
+            raise
+    else:
+        for bucket in buckets['Buckets']:
+            try:
+                bucket['Region'] = client.get_bucket_location(Bucket=bucket['Name'])['LocationConstraint']
+            except ClientError as e:
+                if _is_common_exception(e, bucket):
+                    bucket['Region'] = None
+                    logger.warning("skipping bucket='{}' due to exception.".format(bucket['Name']))
+                    continue
+                else:
+                    raise
     return buckets
 
 
@@ -741,20 +750,21 @@ def sync(
     update_tag: int, common_job_parameters: Dict,
 ) -> None:
     logger.info("Syncing S3 for account '%s'.", current_aws_account_id)
+    # Can return empty map if unable to list S3 buckets
     bucket_data = get_s3_bucket_list(boto3_session)
+    if bucket_data:
+        load_s3_buckets(neo4j_session, bucket_data, current_aws_account_id, update_tag)
+        cleanup_s3_buckets(neo4j_session, common_job_parameters)
 
-    load_s3_buckets(neo4j_session, bucket_data, current_aws_account_id, update_tag)
-    cleanup_s3_buckets(neo4j_session, common_job_parameters)
+        acl_and_policy_data_iter = get_s3_bucket_details(boto3_session, bucket_data)
+        load_s3_details(neo4j_session, acl_and_policy_data_iter, current_aws_account_id, update_tag)
+        cleanup_s3_bucket_acl_and_policy(neo4j_session, common_job_parameters)
 
-    acl_and_policy_data_iter = get_s3_bucket_details(boto3_session, bucket_data)
-    load_s3_details(neo4j_session, acl_and_policy_data_iter, current_aws_account_id, update_tag)
-    cleanup_s3_bucket_acl_and_policy(neo4j_session, common_job_parameters)
-
-    merge_module_sync_metadata(
-        neo4j_session,
-        group_type='AWSAccount',
-        group_id=current_aws_account_id,
-        synced_type='S3Bucket',
-        update_tag=update_tag,
-        stat_handler=stat_handler,
-    )
+        merge_module_sync_metadata(
+            neo4j_session,
+            group_type='AWSAccount',
+            group_id=current_aws_account_id,
+            synced_type='S3Bucket',
+            update_tag=update_tag,
+            stat_handler=stat_handler,
+        )
