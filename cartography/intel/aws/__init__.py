@@ -56,6 +56,7 @@ def _sync_one_account(
 ) -> None:
     if not regions:
         regions = _autodiscover_account_regions(boto3_session, current_aws_account_id)
+    logger.info(f"Using AWS Regions: {regions}")
 
     sync_args = _build_aws_sync_kwargs(
         neo4j_session,
@@ -115,6 +116,7 @@ def _autodiscover_account_regions(
     boto3_session: boto3.session.Session, account_id: str
 ) -> List[str]:
     regions: List[str] = []
+    logger.debug("Getting AWS Regions...")
     try:
         regions = ec2.get_ec2_regions(boto3_session)
     except botocore.exceptions.ClientError as e:
@@ -169,6 +171,7 @@ def _sync_multiple_accounts(
     sync_tag: int,
     common_job_parameters: Dict[str, Any],
     aws_best_effort_mode: bool,
+    regions: List[str] = [],
     aws_requested_syncs: List[str] = [],
 ) -> bool:
     logger.info("Syncing AWS accounts: %s", ", ".join(accounts.values()))
@@ -203,6 +206,7 @@ def _sync_multiple_accounts(
                 account_id,
                 sync_tag,
                 common_job_parameters,
+                regions=regions,
                 aws_requested_syncs=aws_requested_syncs,  # Could be replaced later with per-account requested syncs
             )
         except Exception as e:
@@ -321,9 +325,7 @@ def start_aws_ingestion(neo4j_session: neo4j.Session, config: Config) -> None:
             "No valid AWS credentials could be found. No AWS accounts can be synced. Exiting AWS sync stage.",
         )
         return
-    import pdb
 
-    pdb.set_trace()
     if len(list(aws_accounts.values())) != len(set(aws_accounts.values())):
         logger.warning(
             (
@@ -345,6 +347,7 @@ def start_aws_ingestion(neo4j_session: neo4j.Session, config: Config) -> None:
         config.update_tag,
         common_job_parameters,
         config.aws_best_effort_mode,
+        config.aws_regions,
         requested_syncs,
     )
 
