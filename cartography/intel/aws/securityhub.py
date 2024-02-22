@@ -18,8 +18,13 @@ def get_hub(boto3_session: boto3.session.Session) -> Dict:
     try:
         return client.describe_hub()
     except client.exceptions.ResourceNotFoundException:
+        logging.info("SecurityHub ResourceNotFoundException")
         return {}
     except client.exceptions.InvalidAccessException:
+        logging.info("SecurityHub InvalidAccessException")
+        return {}
+    except client.exceptions.AccessDeniedException:
+        logging.info("SecurityHub AccessDeniedException")
         return {}
 
 
